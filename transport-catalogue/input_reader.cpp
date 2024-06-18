@@ -1,5 +1,4 @@
-#include "input_reader.h" 
-
+#include "input_reader.h"
 
 namespace transport {
     namespace input {
@@ -69,7 +68,7 @@ namespace transport {
                          std::string(line.substr(colon_pos + 1)) };
             }
 
-        } // namespace detail 
+        } // namespace detail
 
         void InputReader::ParseLine(std::string_view line) {
             auto command_description = detail::ParseCommandDescription(line);
@@ -93,5 +92,5 @@ namespace transport {
             }
         }
 
-    } // namespace input 
-} // namespace transport 
+    } // namespace input
+} // namespace transport
