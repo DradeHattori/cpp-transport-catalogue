@@ -34,6 +34,7 @@ namespace transport {
             void AddStop(const std::string& name, geo::Coordinates coordinates);
             void AddBus(const std::string& name, const std::vector<std::string>& stops, bool is_circular);
 
+            std::string_view GetStopNameView(const std::string& name) const;
             const Stop* FindStop(std::string_view name) const;
             const BusRoute* FindBus(std::string_view name) const;
             std::optional<BusInfo> GetBusInfo(std::string_view name) const;
