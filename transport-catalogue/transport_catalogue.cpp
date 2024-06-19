@@ -22,16 +22,6 @@ namespace transport {
             }
         }
 
-        std::string_view TransportCatalogue::GetStopNameView(const std::string& name) const {
-            auto it = stops_.find(name);
-            if (it != stops_.end()) {
-                return it->second->name;
-            }
-            else {
-                return {};
-            }
-        }
-
         const Stop* TransportCatalogue::FindStop(std::string_view name) const {
             auto it = stops_.find(name);
             if (it != stops_.end()) {
