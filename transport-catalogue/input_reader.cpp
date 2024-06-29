@@ -1,5 +1,6 @@
 #include "input_reader.h"
 
+
 namespace transport {
     namespace input {
         namespace detail {
@@ -15,6 +16,49 @@ namespace transport {
                 double lng = std::stod(std::string(str.substr(not_space2)));
                 return { lat, lng };
             }
+
+            std::unordered_map<std::string, int> ParseDistances(std::string_view str) {
+                std::unordered_map<std::string, int> distances;
+
+                // Нахождение начала части строки, содержащей расстояния
+                auto dist_start = str.find(',') + 1;
+                str.remove_prefix(dist_start);
+
+                dist_start = str.find(',') + 1;
+                str.remove_prefix(dist_start);
+
+                // stringstream для обработки частей строки
+                std::string distances_part(str);
+                std::stringstream ss(distances_part);
+                std::string segment;
+
+                while (std::getline(ss, segment, ',')) {
+                    // Удаление пробелов в начале строки
+                    segment.erase(0, segment.find_first_not_of(' '));
+
+                    // Находим позицию "to"
+                    auto to_pos = segment.find("to ");
+                    if (to_pos != std::string::npos) {
+                        // Извлекаем имя остановки
+                        std::string stop_name = segment.substr(to_pos + 3);
+
+                        // Извлекаем расстояние
+                        auto dist_pos = segment.find("m");
+                        if (dist_pos != std::string::npos) {
+                            int distance = std::stoi(segment.substr(0, dist_pos));
+
+                            // Удаляем пробелы в конце имени остановки
+                            stop_name.erase(stop_name.find_last_not_of(' ') + 1);
+
+                            // Добавляем данные в unordered_map
+                            distances[stop_name] = distance;
+                        }
+                    }
+                }
+
+                return distances;
+            }
+
 
             std::string_view Trim(std::string_view string) {
                 const auto start = string.find_first_not_of(' ');
@@ -81,7 +125,10 @@ namespace transport {
             for (const auto& command : commands_) {
                 if (command.command == "Stop") {
                     auto coordinates = detail::ParseCoordinates(command.description);
-                    catalogue.AddStop(command.id, coordinates);
+                    auto distances = detail::ParseDistances(command.description);
+                    catalogue.AddStop(command.id, coordinates, distances);
+
+
                 }
                 else if (command.command == "Bus") {
                     auto stops = detail::ParseRoute(command.description);

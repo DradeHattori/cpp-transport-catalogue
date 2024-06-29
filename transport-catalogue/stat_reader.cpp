@@ -1,6 +1,7 @@
 #include "stat_reader.h"
 #include "geo.h"
 #include <iomanip>
+#include <algorithm>
 
 namespace transport {
     namespace stat {
@@ -11,7 +12,8 @@ namespace transport {
                 const auto& bus_info = *bus_info_opt;
                 output << "Bus " << bus_name << ": " << bus_info.stop_count << " stops on route, "
                     << bus_info.unique_stop_count << " unique stops, "
-                    << std::setprecision(6) << bus_info.route_length << " route length\n";
+                    << bus_info.route_length << " route length, "
+                    << std::setprecision(6) << bus_info.curvature << " curvature\n";
             }
             else {
                 output << "Bus " << bus_name << ": not found\n";
@@ -26,8 +28,10 @@ namespace transport {
                     output << "Stop " << stop_name << ": no buses\n";
                 }
                 else {
+                    std::vector<std::string_view> sorted_buses(buses->begin(), buses->end());
+                    std::sort(sorted_buses.begin(), sorted_buses.end());
                     output << "Stop " << stop_name << ": buses";
-                    for (const auto& bus : *buses) {
+                    for (const auto& bus : sorted_buses) {
                         output << ' ' << bus;
                     }
                     output << '\n';
@@ -37,6 +41,7 @@ namespace transport {
                 output << "Stop " << stop_name << ": not found\n";
             }
         }
+
 
         void ParseAndPrintStat(const transport::catalogue::TransportCatalogue& transport_catalogue, std::string_view request, std::ostream& output) {
             if (request.substr(0, 4) == "Bus ") {
@@ -49,3 +54,4 @@ namespace transport {
 
     } // namespace stat
 } // namespace transport
+

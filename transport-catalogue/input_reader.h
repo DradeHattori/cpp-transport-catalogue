@@ -6,6 +6,8 @@
 #include <string> 
 #include <string_view> 
 #include <vector> 
+#include <sstream>
+#include <unordered_map>
 
 namespace transport {
     namespace input {
@@ -34,6 +36,7 @@ namespace transport {
 
         namespace detail {
             transport::geo::Coordinates ParseCoordinates(std::string_view str);
+            std::unordered_map<std::string, int> ParseDistances(std::string_view str);
             std::string_view Trim(std::string_view string);
             std::vector<std::string_view> Split(std::string_view string, char delim);
             std::vector<std::string_view> ParseRoute(std::string_view route);
@@ -42,3 +45,5 @@ namespace transport {
 
     } // namespace input 
 } // namespace transport 
+
+
