@@ -32,11 +32,11 @@ namespace transport {
 
         class TransportCatalogue {
         public:
-            void AddStop(const std::string& name, geo::Coordinates coordinates, std::unordered_map<std::string, int>& distances);
-            void AddBus(const std::string& name, const std::vector<std::string>& stops, bool is_circular);
-            void AddDistance(const std::string& stop_name, const std::string& other_stop_name, int distance);
+            void AddStop(const std::string_view name, geo::Coordinates coordinates, std::unordered_map<std::string, int>& distances);
+            void AddBus(const std::string_view name, const std::vector<std::string>& stops, bool is_circular);
+            void AddDistance(const std::string_view stop_name, const std::string_view other_stop_name, int distance);
 
-            std::string_view GetStopNameView(const std::string& name) const;
+      
             const Stop* FindStop(std::string_view name) const;
             const BusRoute* FindBus(std::string_view name) const;
             std::optional<BusInfo> GetBusInfo(std::string_view name) const;
