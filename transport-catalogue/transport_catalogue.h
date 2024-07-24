@@ -1,3 +1,5 @@
+//// transport_catalogue.h
+
 #pragma once
 
 #include "geo.h"
@@ -36,14 +38,16 @@ namespace transport {
             void AddBus(const std::string_view name, const std::vector<std::string>& stops, bool is_circular);
             void AddDistance(const std::string_view stop_name, const std::string_view other_stop_name, int distance);
 
-      
+
             const Stop* FindStop(std::string_view name) const;
             const BusRoute* FindBus(std::string_view name) const;
             std::optional<BusInfo> GetBusInfo(std::string_view name) const;
             const std::unordered_set<std::string_view>* GetBusesForStop(std::string_view stop_name) const;
 
-        private:
+            const std::unordered_map<std::string_view, Stop*>& GetAllStops() const;
+            const std::unordered_map<std::string_view, BusRoute*>& GetAllBuses() const;
 
+        private:
             struct StopPairHasher {
                 std::size_t operator()(const std::pair<const Stop*, const Stop*>& StopsPair) const {
                     std::size_t left = std::hash<const void*>()(static_cast<const void*>(StopsPair.first));

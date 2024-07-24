@@ -1,3 +1,5 @@
+//// transport_catalogue.cpp
+
 #include "transport_catalogue.h"
 #include "geo.h"
 
@@ -26,7 +28,6 @@ namespace transport {
         void TransportCatalogue::AddDistance(const std::string_view stop_name, const std::string_view other_stop_name, int distance) {
             Stop* stop = nullptr;
 
-           
             auto it = stops_.find(stop_name);
             if (it != stops_.end()) {
                 stop = it->second;
@@ -36,17 +37,6 @@ namespace transport {
                 stop = &stop_objects_.back();
                 stops_[stop->name] = stop;
             }
-
-            /*
-            if (stops_.count(stop_name)) {
-                stop = stops_.at(stop_name);
-            }
-            else {
-                stop_objects_.push_back({ stop_name, {0, 0} });
-                stop = &stop_objects_.back();
-                stops_[stop->name] = stop;
-            }
-            */
 
             Stop* other_stop = nullptr;
 
@@ -87,6 +77,7 @@ namespace transport {
             }
         }
 
+
         const BusRoute* TransportCatalogue::FindBus(std::string_view name) const {
             auto it = buses_.find(name);
             if (it != buses_.end()) {
@@ -113,15 +104,18 @@ namespace transport {
             for (size_t i = 1; i < bus.stops.size(); ++i) {
                 const Stop* from = stops_.at(bus.stops[i - 1]);
                 const Stop* to = stops_.at(bus.stops[i]);
-                auto it = stop_distances_.find({ from, to });
-                if (it != stop_distances_.end()) {
-                    route_length += it->second;
-                }
-                else {
-                    route_length += 0;
-                }
-
+                route_length += stop_distances_.at({ from, to });
                 geo_length += geo::ComputeDistance(from->coordinates, to->coordinates);
+            }
+
+            if (!bus.is_circular) {
+                for (size_t i = bus.stops.size() - 1; i > 0; --i) {
+                    const Stop* from = stops_.at(bus.stops[i]);
+                    const Stop* to = stops_.at(bus.stops[i - 1]);
+                    route_length += stop_distances_.at({ from, to });
+                    geo_length += geo::ComputeDistance(from->coordinates, to->coordinates);
+                }
+                stop_count = 2 * stop_count - 1; // Остановок туда-обратно без дублирования последней
             }
 
             double curvature = route_length / geo_length;
@@ -136,6 +130,14 @@ namespace transport {
             else {
                 return nullptr;
             }
+        }
+
+        const std::unordered_map<std::string_view, Stop*>& TransportCatalogue::GetAllStops() const {
+            return stops_;
+        }
+
+        const std::unordered_map<std::string_view, BusRoute*>& TransportCatalogue::GetAllBuses() const {
+            return buses_;
         }
 
     } // namespace catalogue
