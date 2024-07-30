@@ -1,6 +1,6 @@
 //map_renderer.cpp
 #include "map_renderer.h"
-#include <set>
+
 
 namespace transport {
     namespace catalogue {
@@ -10,183 +10,63 @@ namespace transport {
             return std::abs(value) < EPSILON;
         }
 
-        class SphereProjector {
-        public:
-            // points_begin и points_end задают начало и конец интервала элементов geo::Coordinates
-            template <typename PointInputIt>
-            SphereProjector(PointInputIt points_begin, PointInputIt points_end,
-                double max_width, double max_height, double padding)
-                : padding_(padding) //
-            {
-                // Если точки поверхности сферы не заданы, вычислять нечего
-                if (points_begin == points_end) {
-                    return;
-                }
-
-                // Находим точки с минимальной и максимальной долготой
-                const auto [left_it, right_it] = std::minmax_element(
-                    points_begin, points_end,
-                    [](auto lhs, auto rhs) { return lhs.lng < rhs.lng; });
-                min_lon_ = left_it->lng;
-                const double max_lon = right_it->lng;
-
-                // Находим точки с минимальной и максимальной широтой
-                const auto [bottom_it, top_it] = std::minmax_element(
-                    points_begin, points_end,
-                    [](auto lhs, auto rhs) { return lhs.lat < rhs.lat; });
-                const double min_lat = bottom_it->lat;
-                max_lat_ = top_it->lat;
-
-                // Вычисляем коэффициент масштабирования вдоль координаты x
-                std::optional<double> width_zoom;
-                if (!IsZero(max_lon - min_lon_)) {
-                    width_zoom = (max_width - 2 * padding) / (max_lon - min_lon_);
-                }
-
-                // Вычисляем коэффициент масштабирования вдоль координаты y
-                std::optional<double> height_zoom;
-                if (!IsZero(max_lat_ - min_lat)) {
-                    height_zoom = (max_height - 2 * padding) / (max_lat_ - min_lat);
-                }
-
-                if (width_zoom && height_zoom) {
-                    // Коэффициенты масштабирования по ширине и высоте ненулевые,
-                    // берём минимальный из них
-                    zoom_coeff_ = std::min(*width_zoom, *height_zoom);
-                }
-                else if (width_zoom) {
-                    // Коэффициент масштабирования по ширине ненулевой, используем его
-                    zoom_coeff_ = *width_zoom;
-                }
-                else if (height_zoom) {
-                    // Коэффициент масштабирования по высоте ненулевой, используем его
-                    zoom_coeff_ = *height_zoom;
-                }
+       
+        // points_begin и points_end задают начало и конец интервала элементов geo::Coordinates
+        template <typename PointInputIt>
+        SphereProjector::SphereProjector(PointInputIt points_begin, PointInputIt points_end,
+            double max_width, double max_height, double padding)
+            : padding_(padding)
+        {
+            // Если точки поверхности сферы не заданы, вычислять нечего
+            if (points_begin == points_end) {
+                return;
             }
 
-            // Проецирует широту и долготу в координаты внутри SVG-изображения
-            svg::Point operator()(geo::Coordinates coords) const {
-                return {
-                    (coords.lng - min_lon_) * zoom_coeff_ + padding_,
-                    (max_lat_ - coords.lat) * zoom_coeff_ + padding_
-                };
+            // Находим точки с минимальной и максимальной долготой
+            const auto [left_it, right_it] = std::minmax_element(
+                points_begin, points_end,
+                [](auto lhs, auto rhs) { return lhs.lng < rhs.lng; });
+            min_lon_ = left_it->lng;
+            const double max_lon = right_it->lng;
+
+            // Находим точки с минимальной и максимальной широтой
+            const auto [bottom_it, top_it] = std::minmax_element(
+                points_begin, points_end,
+                [](auto lhs, auto rhs) { return lhs.lat < rhs.lat; });
+            const double min_lat = bottom_it->lat;
+            max_lat_ = top_it->lat;
+
+            // Вычисляем коэффициент масштабирования вдоль координаты x
+            std::optional<double> width_zoom;
+            if (!IsZero(max_lon - min_lon_)) {
+                width_zoom = (max_width - 2 * padding) / (max_lon - min_lon_);
             }
 
-        private:
-            double padding_;
-            double min_lon_ = 0;
-            double max_lat_ = 0;
-            double zoom_coeff_ = 0;
-        };
-
-        RenderSettings GetRenderSettings(const json::Document& doc) {
-            const auto& render_settings = doc.GetRoot().AsMap().at("render_settings").AsMap();
-            RenderSettings settings;
-
-            settings.width = render_settings.at("width").AsDouble();
-            settings.height = render_settings.at("height").AsDouble();
-            settings.padding = render_settings.at("padding").AsDouble();
-            settings.stop_radius = render_settings.at("stop_radius").AsDouble();
-            settings.line_width = render_settings.at("line_width").AsDouble();
-            settings.bus_label_font_size = render_settings.at("bus_label_font_size").AsInt();
-            settings.bus_label_offset = {
-                render_settings.at("bus_label_offset").AsArray().at(0).AsDouble(),
-                render_settings.at("bus_label_offset").AsArray().at(1).AsDouble()
-            };
-
-            settings.stop_label_font_size = render_settings.at("stop_label_font_size").AsInt();
-            settings.stop_label_offset = {
-                render_settings.at("stop_label_offset").AsArray().at(0).AsDouble(),
-                render_settings.at("stop_label_offset").AsArray().at(1).AsDouble()
-            };
-
-            auto underlayer_color = render_settings.at("underlayer_color");
-            if (underlayer_color.IsArray() && underlayer_color.AsArray().size() == 4) {
-                settings.underlayer_color = svg::Color{
-                svg::Rgba{
-                    static_cast<uint8_t>(render_settings.at("underlayer_color").AsArray().at(0).AsInt()),
-                    static_cast<uint8_t>(render_settings.at("underlayer_color").AsArray().at(1).AsInt()),
-                    static_cast<uint8_t>(render_settings.at("underlayer_color").AsArray().at(2).AsInt()),
-                    render_settings.at("underlayer_color").AsArray().at(3).AsDouble()
-                }
-                };
-            }
-            else if (underlayer_color.IsArray() && underlayer_color.AsArray().size() == 3) {
-                settings.underlayer_color = svg::Color{
-                svg::Rgb{
-                    static_cast<uint8_t>(render_settings.at("underlayer_color").AsArray().at(0).AsInt()),
-                    static_cast<uint8_t>(render_settings.at("underlayer_color").AsArray().at(1).AsInt()),
-                    static_cast<uint8_t>(render_settings.at("underlayer_color").AsArray().at(2).AsInt()),
-                }
-                };
-            }
-            else {
-                settings.underlayer_color = underlayer_color.AsString();
+            // Вычисляем коэффициент масштабирования вдоль координаты y
+            std::optional<double> height_zoom;
+            if (!IsZero(max_lat_ - min_lat)) {
+                height_zoom = (max_height - 2 * padding) / (max_lat_ - min_lat);
             }
 
-            settings.underlayer_width = render_settings.at("underlayer_width").AsDouble();
-
-            for (const auto& color : render_settings.at("color_palette").AsArray()) {
-                if (color.IsArray() && color.AsArray().size() == 3) {
-                    svg::Rgb rgb{
-                          static_cast<uint8_t>(color.AsArray().at(0).AsInt()),
-                          static_cast<uint8_t>(color.AsArray().at(1).AsInt()),
-                          static_cast<uint8_t>(color.AsArray().at(2).AsInt()),
-                    };
-                    settings.color_palette.emplace_back(rgb);
-                }
-                else if (color.IsArray() && color.AsArray().size() == 4) {
-                    svg::Rgba rgba{
-                        static_cast<uint8_t>(color.AsArray().at(0).AsInt()),
-                        static_cast<uint8_t>(color.AsArray().at(1).AsInt()),
-                        static_cast<uint8_t>(color.AsArray().at(2).AsInt()),
-                        color.AsArray().at(3).AsDouble()
-                    };
-                    settings.color_palette.emplace_back(rgba);
-                }
-                else {
-                    std::string color_str = color.AsString();
-                    settings.color_palette.emplace_back(svg::Color{ std::move(color_str) });
-                }
+            if (width_zoom && height_zoom) {
+                // Коэффициенты масштабирования по ширине и высоте ненулевые,
+                // берём минимальный из них
+                zoom_coeff_ = std::min(*width_zoom, *height_zoom);
             }
-
-
-            return settings;
+            else if (width_zoom) {
+                // Коэффициент масштабирования по ширине ненулевой, используем его
+                zoom_coeff_ = *width_zoom;
+            }
+            else if (height_zoom) {
+                // Коэффициент масштабирования по высоте ненулевой, используем его
+                zoom_coeff_ = *height_zoom;
+            }
         }
-
 
 
         MapRenderer::MapRenderer(RenderSettings settings) : settings_(std::move(settings)) {}
 
-
-        void MapRenderer::RenderMap(TransportCatalogue& transport_catalogue,
-            std::ostream& output) const {
-
-            const auto allbuses = transport_catalogue.GetAllBuses();
-            const std::map<std::string_view, BusRoute*>& buses = { allbuses.begin(), allbuses.end() };
-
-            const auto allstops = transport_catalogue.GetAllStops();
-            const std::map<std::string_view, Stop*> stops = { allstops.begin(), allstops.end() };
-
-            svg::Document doc;
-
-            std::vector<geo::Coordinates> coords;
-
-            std::set<std::string_view> stops_set;
-
-
-            // задать масштаб карты и добавить в set все используемые остановки
-            for (const auto& bus : buses) {
-                for (const auto& stop_name : bus.second->stops) {
-                    coords.push_back(transport_catalogue.FindStop(stop_name)->coordinates);
-                    stops_set.insert(transport_catalogue.FindStop(stop_name)->name);
-                }
-            }
-
-            SphereProjector projector(coords.begin(), coords.end(), settings_.width, settings_.height, settings_.padding);
-
-            // нарисовать линии маршрутов
-            size_t color_index = 0;
+        void MapRenderer::DrawRouteLines(svg::Document& doc, const std::map<std::string_view, BusRoute*>& buses, const std::map<std::string_view, Stop*>& stops, const SphereProjector& projector, size_t& color_index) const {
             for (const auto& [_, bus] : buses) {
                 svg::Polyline polyline;
                 polyline.SetStrokeColor(settings_.color_palette[color_index])
@@ -212,10 +92,10 @@ namespace transport {
                 doc.Add(std::move(polyline));
                 color_index = (color_index + 1) % settings_.color_palette.size();
             }
+        }
 
+        void MapRenderer::DrawRouteNames(svg::Document& doc, const std::map<std::string_view, BusRoute*>& buses, const std::map<std::string_view, Stop*>& stops, const SphereProjector& projector, size_t& color_index) const {
 
-            // нарисовать названия маршрутов
-            color_index = 0;
             for (const auto& [_, bus] : buses) {
                 const auto& bus_stops = bus->stops;
                 const auto& start_stop = stops.find(bus_stops.front());
@@ -255,8 +135,9 @@ namespace transport {
                 }
                 color_index = (color_index + 1) % settings_.color_palette.size();
             }
+        }
 
-
+        void MapRenderer::DrawStops(svg::Document& doc, const std::set<std::string_view>& stops_set, const std::map<std::string_view, Stop*>& stops, const SphereProjector& projector) const {
             // нарисовать кружочки
             for (const auto& stop : stops_set) {
                 const auto stop_point = stops.find(stop);
@@ -287,6 +168,41 @@ namespace transport {
                 doc.Add(underlayer);
                 doc.Add(stop_name);
             }
+
+        }
+
+        void MapRenderer::RenderMap(TransportCatalogue& transport_catalogue,
+            std::ostream& output) const {
+
+            const auto allbuses = transport_catalogue.GetAllBuses();
+            const std::map<std::string_view, BusRoute*>& buses = { allbuses.begin(), allbuses.end() };
+
+            const auto allstops = transport_catalogue.GetAllStops();
+            const std::map<std::string_view, Stop*> stops = { allstops.begin(), allstops.end() };
+
+            svg::Document doc;
+
+            std::vector<geo::Coordinates> coords;
+
+            std::set<std::string_view> stops_set;
+
+
+            // задать масштаб карты и добавить в set все используемые остановки
+            for (const auto& bus : buses) {
+                for (const auto& stop_name : bus.second->stops) {
+                    coords.push_back(transport_catalogue.FindStop(stop_name)->coordinates);
+                    stops_set.insert(transport_catalogue.FindStop(stop_name)->name);
+                }
+            }
+
+            SphereProjector projector(coords.begin(), coords.end(), settings_.width, settings_.height, settings_.padding);
+
+            size_t color_index = 0;
+
+            DrawRouteLines(doc, buses, stops, projector, color_index); color_index = 0;
+            DrawRouteNames(doc, buses, stops, projector, color_index);
+            DrawStops(doc, stops_set, stops, projector);
+            
 
             doc.Render(output);
         }
