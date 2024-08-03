@@ -125,7 +125,7 @@ namespace json {
 
         Node LoadNull(std::istream& input) {
             if (auto literal = LoadLiteral(input); literal == "null"sv) {
-                return Node{ 0 };
+                return Node{ nullptr };
             }
             else {
                 throw ParsingError("Failed to parse '"s + literal + "' as null"s);
@@ -289,7 +289,7 @@ namespace json {
         }
 
         template <>
-        void PrintValue<std::monostate>(const std::monostate&, const PrintContext& ctx) {
+        void PrintValue<std::nullptr_t>(const std::nullptr_t&, const PrintContext& ctx) {
             ctx.out << "null"sv;
         }
 

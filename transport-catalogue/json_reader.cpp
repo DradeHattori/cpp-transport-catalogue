@@ -1,7 +1,6 @@
-// json_reader.cpp
-
 #include "json_reader.h"
 #include "json.h"
+#include "json_builder.h"
 #include "map_renderer.h"
 
 #include <algorithm>
@@ -12,16 +11,16 @@ namespace transport {
     namespace catalogue {
 
         void JsonReader::LoadData(const json::Document& doc) {
-            const auto& base_requests = doc.GetRoot().AsMap().at("base_requests").AsArray();
+            const auto& base_requests = doc.GetRoot().AsDict().at("base_requests").AsArray();
             for (const auto& request : base_requests) {
-                const auto& request_map = request.AsMap();
+                const auto& request_map = request.AsDict();
                 const auto& Request = request_map.at("type").AsString();
                 if (Request == "Stop") {
                     std::string stop_name = request_map.at("name").AsString();
                     double lat = request_map.at("latitude").AsDouble();
                     double lng = request_map.at("longitude").AsDouble();
                     std::unordered_map<std::string, int> distances;
-                    for (const auto& [name, distance] : request_map.at("road_distances").AsMap()) {
+                    for (const auto& [name, distance] : request_map.at("road_distances").AsDict()) {
                         distances[name] = distance.AsInt();
                     }
                     catalogue_.AddStop(std::move(stop_name), { lat, lng }, distances);
@@ -40,10 +39,10 @@ namespace transport {
         }
 
         void JsonReader::ProcessRequests(const json::Document& doc, std::ostream& output) {
-            const auto& stat_requests = doc.GetRoot().AsMap().at("stat_requests").AsArray();
+            const auto& stat_requests = doc.GetRoot().AsDict().at("stat_requests").AsArray();
             json::Array responses;
             for (const auto& request : stat_requests) {
-                const auto& request_map = request.AsMap();
+                const auto& request_map = request.AsDict();
                 int request_id = request_map.at("id").AsInt();
                 const std::string_view type = request_map.at("type").AsString();
                 if (type == "Bus") {
@@ -62,60 +61,61 @@ namespace transport {
         void JsonReader::ProcessBusRequest(const json::Dict& request_map, int request_id, json::Array& responses) {
             const std::string_view bus_name = request_map.at("name").AsString();
             std::optional<BusInfo> bus = catalogue_.GetBusInfo(bus_name);
+            json::Builder builder;
+
             if (bus.has_value()) {
-                double route_length = bus->route_length;
-                double curvature = bus->curvature;
-                int stop_count = bus->stop_count;
-                int unique_stop_count = bus->unique_stop_count;
-                responses.push_back(json::Node(json::Dict{
-                    {"request_id", request_id},
-                    {"curvature", curvature},
-                    {"route_length", route_length},
-                    {"stop_count", stop_count},
-                    {"unique_stop_count", unique_stop_count}
-                    }));
+                builder.StartDict()
+                    .Key("request_id").Value(request_id)
+                    .Key("curvature").Value(bus->curvature)
+                    .Key("route_length").Value(bus->route_length)
+                    .Key("stop_count").Value(bus->stop_count)
+                    .Key("unique_stop_count").Value(bus->unique_stop_count)
+                    .EndDict();
             }
             else {
-                responses.push_back(json::Node(json::Dict{
-                    {"request_id", request_id},
-                    {"error_message", error_message}
-                    }));
+                builder.StartDict()
+                    .Key("request_id").Value(request_id)
+                    .Key("error_message").Value(error_message)
+                    .EndDict();
             }
+
+            responses.push_back(builder.Build());
         }
 
         void JsonReader::ProcessStopRequest(const json::Dict& request_map, int request_id, json::Array& responses) {
             const std::string& stop_name = request_map.at("name").AsString();
             const Stop* stop = catalogue_.FindStop(stop_name);
+            json::Builder builder;
+
             if (stop) {
                 auto buses = catalogue_.GetBusesForStop(stop_name);
+                builder.StartDict()
+                    .Key("request_id").Value(request_id);
+
                 if (buses && !buses->empty()) {
                     std::vector<std::string> sorted_buses(buses->begin(), buses->end());
                     std::sort(sorted_buses.begin(), sorted_buses.end());
 
-                    json::Array buses_array;
-                    buses_array.reserve(sorted_buses.size());
+                    auto buses_array = builder.Key("buses").StartArray();
                     for (const auto& bus : sorted_buses) {
-                        buses_array.push_back(json::Node(bus));
+                        buses_array.Value(bus);
                     }
-
-                    responses.push_back(json::Node(json::Dict{
-                        {"request_id", request_id},
-                        {"buses", std::move(buses_array)}
-                        }));
+                    buses_array.EndArray();
                 }
                 else {
-                    responses.push_back(json::Node(json::Dict{
-                        {"request_id", request_id},
-                        {"buses", json::Array{}}
-                        }));
+                    builder.Key("buses").Value(json::Array{});
                 }
+
+                builder.EndDict();
             }
             else {
-                responses.push_back(json::Node(json::Dict{
-                    {"request_id", request_id},
-                    {"error_message", error_message}
-                    }));
+                builder.StartDict()
+                    .Key("request_id").Value(request_id)
+                    .Key("error_message").Value(error_message)
+                    .EndDict();
             }
+
+            responses.push_back(builder.Build());
         }
 
         void JsonReader::ProcessMapRequest(int request_id, const json::Document& doc, json::Array& responses) {
@@ -125,14 +125,16 @@ namespace transport {
             std::ostringstream map_output;
             map_renderer.RenderMap(catalogue_, map_output);
 
-            responses.push_back(json::Node(json::Dict{
-                {"request_id", request_id},
-                {"map", map_output.str()}
-                }));
+            json::Builder builder;
+            builder.StartDict()
+                .Key("request_id").Value(request_id)
+                .Key("map").Value(map_output.str())
+                .EndDict();
+
+            responses.push_back(builder.Build());
         }
 
-
-         svg::Color ParseColor(const json::Node& color_node) {
+        svg::Color ParseColor(const json::Node& color_node) {
             if (color_node.IsArray() && color_node.AsArray().size() == 4) {
                 return svg::Color{
                     svg::Rgba{
@@ -158,7 +160,7 @@ namespace transport {
         }
 
         RenderSettings GetRenderSettings(const json::Document& doc) {
-            const auto& render_settings = doc.GetRoot().AsMap().at("render_settings").AsMap();
+            const auto& render_settings = doc.GetRoot().AsDict().at("render_settings").AsDict();
             RenderSettings settings;
 
             settings.width = render_settings.at("width").AsDouble();
@@ -181,14 +183,12 @@ namespace transport {
             settings.underlayer_color = ParseColor(render_settings.at("underlayer_color"));
             settings.underlayer_width = render_settings.at("underlayer_width").AsDouble();
 
-            for (const auto& color : render_settings.at("color_palette").AsArray()) {
-                settings.color_palette.emplace_back(ParseColor(color));
+            for (const auto& color_node : render_settings.at("color_palette").AsArray()) {
+                settings.color_palette.push_back(ParseColor(color_node));
             }
 
             return settings;
         }
-
-       
 
     } // namespace catalogue
 }  // namespace transport
