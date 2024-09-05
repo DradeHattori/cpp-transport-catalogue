@@ -1,3 +1,5 @@
+// json_reader.cpp
+
 #include "json_reader.h"
 #include "json.h"
 #include "json_builder.h"
@@ -6,6 +8,7 @@
 #include <algorithm>
 #include <unordered_map>
 #include <sstream>
+
 
 namespace transport {
     namespace catalogue {
@@ -53,6 +56,9 @@ namespace transport {
                 }
                 else if (type == "Map") {
                     ProcessMapRequest(request_id, doc, responses);
+                }
+                else if (type == "Route") {
+                    ProcessRouteRequest(request_map, request_id, responses, doc);
                 }
             }
             json::Print(json::Document(json::Node(std::move(responses))), output);
@@ -134,6 +140,72 @@ namespace transport {
             responses.push_back(builder.Build());
         }
 
+        RoutingSettings GetRoutingSettings(const json::Document& doc) {
+            const auto& routing_settings = doc.GetRoot().AsDict().at("routing_settings").AsDict();
+            RoutingSettings settings;
+
+            settings.bus_velocity = routing_settings.at("bus_velocity").AsInt();
+            settings.bus_wait_time = routing_settings.at("bus_wait_time").AsInt();
+
+            return settings;
+        }
+
+        void JsonReader::ProcessRouteRequest(const json::Dict& request_map, int request_id, json::Array& responses, const json::Document& doc) {
+
+            const std::string& from_stop_name = request_map.at("from").AsString();
+            const std::string& to_stop_name = request_map.at("to").AsString();
+
+            auto routing_settings = GetRoutingSettings(doc);
+
+            if (!transport_router_.has_value()) {
+                transport_router_.emplace(routing_settings, catalogue_);
+            }
+            
+            const auto& route_result = transport_router_.value().GetRoute(from_stop_name, to_stop_name);
+
+            json::Builder builder;
+            builder.StartDict()
+                .Key("request_id").Value(request_id);
+
+            if (route_result) {
+                double total_time;
+                std::vector<RouteItem> route_items;
+                std::tie(total_time, route_items) = *route_result;
+
+                builder.Key("total_time").Value(total_time);
+
+                json::Array items_array;
+                for (const auto& item : route_items) {
+                    json::Builder item_builder;
+                    if (item.type == "Wait") {
+                        item_builder.StartDict()
+                            .Key("type").Value("Wait")
+                            .Key("stop_name").Value(item.name)
+                            .Key("time").Value(item.time)
+                            .EndDict();
+                    }
+                    else if (item.type == "Bus") {
+                        item_builder.StartDict()
+                            .Key("type").Value("Bus")
+                            .Key("bus").Value(item.name)
+                            .Key("span_count").Value(item.span_count)
+                            .Key("time").Value(item.time)
+                            .EndDict();
+                    }
+
+                    items_array.push_back(item_builder.Build());
+                }
+
+                builder.Key("items").Value(std::move(items_array));
+            }
+            else {
+                builder.Key("error_message").Value("not found");
+            }
+
+            builder.EndDict();
+            responses.push_back(builder.Build());
+        }
+
         svg::Color ParseColor(const json::Node& color_node) {
             if (color_node.IsArray() && color_node.AsArray().size() == 4) {
                 return svg::Color{
@@ -158,6 +230,9 @@ namespace transport {
                 return color_node.AsString();
             }
         }
+
+
+     
 
         RenderSettings GetRenderSettings(const json::Document& doc) {
             const auto& render_settings = doc.GetRoot().AsDict().at("render_settings").AsDict();

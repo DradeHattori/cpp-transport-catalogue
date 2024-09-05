@@ -2,9 +2,11 @@
 #include "json.h"
 #include "json_reader.h"
 #include "map_renderer.h"
+#include "log_duration.h"
 
 int main() {
     try {
+        LOG_DURATION("Program");
         using namespace transport::catalogue;
 
         json::Document input_doc = json::Load(std::cin);

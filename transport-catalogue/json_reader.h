@@ -1,9 +1,12 @@
+// json_reader.h
+
 #pragma once
 
 #include "transport_catalogue.h"
 #include "json.h"
 #include "json_builder.h"
 #include "svg.h"
+#include "transport_router.h"
 
 namespace transport {
     namespace catalogue {
@@ -36,7 +39,9 @@ namespace transport {
             void ProcessBusRequest(const json::Dict& request_map, int request_id, json::Array& responses);
             void ProcessStopRequest(const json::Dict& request_map, int request_id, json::Array& responses);
             void ProcessMapRequest(int request_id, const json::Document& doc, json::Array& responses);
+            void ProcessRouteRequest(const json::Dict& request_map, int request_id, json::Array& responses, const json::Document& doc);
 
+            std::optional<TransportRouter> transport_router_;
             TransportCatalogue& catalogue_;
             const std::string error_message = "not found";
         };

@@ -31,13 +31,18 @@ namespace transport {
             double route_length;
             double curvature;
         };
-
+        struct StopPairHasher {
+            std::size_t operator()(const std::pair<const Stop*, const Stop*>& StopsPair) const {
+                std::size_t left = std::hash<const void*>()(static_cast<const void*>(StopsPair.first));
+                std::size_t right = std::hash<const void*>()(static_cast<const void*>(StopsPair.second));
+                return left ^ (right << 1); // Комбинирование хешей
+            }
+        };
         class TransportCatalogue {
         public:
             void AddStop(const std::string_view name, geo::Coordinates coordinates, std::unordered_map<std::string, int>& distances);
             void AddBus(const std::string_view name, const std::vector<std::string>& stops, bool is_circular);
             void AddDistance(const std::string_view stop_name, const std::string_view other_stop_name, int distance);
-
 
             const Stop* FindStop(std::string_view name) const;
             const BusRoute* FindBus(std::string_view name) const;
@@ -47,15 +52,9 @@ namespace transport {
             const std::unordered_map<std::string_view, Stop*>& GetAllStops() const;
             const std::unordered_map<std::string_view, BusRoute*>& GetAllBuses() const;
 
-        private:
-            struct StopPairHasher {
-                std::size_t operator()(const std::pair<const Stop*, const Stop*>& StopsPair) const {
-                    std::size_t left = std::hash<const void*>()(static_cast<const void*>(StopsPair.first));
-                    std::size_t right = std::hash<const void*>()(static_cast<const void*>(StopsPair.second));
-                    return left ^ (right << 1); // Комбинирование хешей
-                }
-            };
+            std::optional <double>  GetDistance(std::string_view from, std::string_view to) const;
 
+        private:
             std::unordered_map<std::string_view, Stop*> stops_;
             std::unordered_map<std::string_view, BusRoute*> buses_;
             std::unordered_map<std::string_view, std::unordered_set<std::string_view>> stop_to_buses_;

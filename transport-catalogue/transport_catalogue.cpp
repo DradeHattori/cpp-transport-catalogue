@@ -140,5 +140,21 @@ namespace transport {
             return buses_;
         }
 
+        std::optional <double> TransportCatalogue::GetDistance(std::string_view from, std::string_view to) const {
+            
+            auto stop_from = stops_.find(from);
+            auto stop_to = stops_.find(to);
+            
+            auto result_it = stop_distances_.find({ stop_from->second, stop_to->second });
+            if (result_it != stop_distances_.end()) {
+                return result_it->second;
+            }
+       
+            return std::nullopt;
+        }
+
+
+
+
     } // namespace catalogue
 } // namespace transport
