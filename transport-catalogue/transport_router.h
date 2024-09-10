@@ -22,7 +22,7 @@ namespace transport {
         struct RouteItem {
             std::string type;
             std::string name;
-            int span_count = 0; // может быть пустым если запрос - Route
+            int span_count = 0; // используется только для автобусов
             double time = 0;
         };
 
@@ -30,13 +30,13 @@ namespace transport {
         class TransportRouter {
         public:
             TransportRouter(const RoutingSettings& settings, const TransportCatalogue& catalogue);
+
+            DirectedWeightedGraph<double> BuildGraphFromStops();
+           
             void BuildGraph(const TransportCatalogue& catalogue);
+            void FillGraph(DirectedWeightedGraph<double>& graph, const TransportCatalogue& catalogue);
 
             std::optional<std::tuple<double, std::vector<RouteItem>>> GetRoute(const std::string_view from, const std::string_view to) const;
-
-       
-
-            // std::optional<std::tuple<double, std::vector<RouteItem>>> GetRoute(const TransportCatalogue& catalogue, const std::string_view from, const std::string_view to) const;
 
         private:
             RoutingSettings settings_;
